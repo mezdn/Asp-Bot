@@ -10,8 +10,9 @@ using Microsoft.Bot.Builder.Integration.AspNet.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-
 using Chatbot.Bots;
+using Chatbot.Services.CloudConvert;
+using Chatbot.Services.SpeechToText;
 
 namespace Chatbot
 {
@@ -34,6 +35,21 @@ namespace Chatbot
 
             // Create the bot as a transient. In this case the ASP Controller is expecting an IBot.
             services.AddTransient<IBot, Bot>();
+
+            // Add audio converter to convert to wav audio file
+            services.AddTransient<ICloudConvert, CloudConvert>(sp =>
+            {
+                var settings = GetSettings<CloudConvertSettings>(Configuration);
+                return new CloudConvert(settings);
+            });
+
+            // Add speech to text service
+            services.AddTransient<ISpeechRecognizer, SpeechRecognizer>(sp =>
+            {
+                var settings = GetSettings<SpeechRecognizerSettings>(Configuration);
+                var cloudConvertSettings = GetSettings<CloudConvertSettings>(Configuration);
+                return new SpeechRecognizer(settings, new CloudConvert(cloudConvertSettings));
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -55,6 +71,14 @@ namespace Chatbot
                 });
 
             // app.UseHttpsRedirection();
+        }
+
+        public static T GetSettings<T>(IConfiguration configuration) where T : new()
+        {
+            var config = configuration.GetSection(typeof(T).Name);
+            T settings = new T();
+            config.Bind(settings);
+            return settings;
         }
     }
 }
